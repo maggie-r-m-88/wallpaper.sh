@@ -68,16 +68,15 @@ export default function AdminPage() {
     }
   };
 
-  const handleUpdate = async (index) => {
+  const handleUpdate = async (id) => {
     try {
       const res = await fetch("/api/admin/images", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ index, ...formData }),
+        body: JSON.stringify({ id, ...formData }),
       });
       if (res.ok) {
         await fetchImages();
-        resetPaging();
         setEditingIndex(null);
         setFormData({ url: "", title: "", source: "", attribution: "" });
       }
@@ -123,15 +122,18 @@ export default function AdminPage() {
     }
   };
 
-  const startEdit = (index) => {
-    setEditingIndex(index);
-    setFormData(images[index]);
-    setShowAddForm(false);
+  const startEdit = (id) => {
+    const image = images.find(img => img.id === id);
+    if (image) {
+      setEditingIndex(id);
+      setFormData(image);
+      setShowAddForm(false);
+    }
   };
 
   const cancelEdit = () => {
     setEditingIndex(null);
-    setFormData({ url: "", status: "active", source: "", notes: "" });
+    setFormData({ url: "", title: "", source: "", attribution: "" });
   };
 
   const handleLogout = async () => {
@@ -179,18 +181,16 @@ export default function AdminPage() {
         )}
 
         <div className="grid gap-6">
-          {paginatedImages.map((image, index) => {
-            const realIndex =
-              (currentPage - 1) * ITEMS_PER_PAGE + index;
+          {paginatedImages.map((image) => {
             return (
               <ImageCard
-                key={image.url}
+                key={image.id || image.url}
                 image={image}
-                isEditing={editingIndex === realIndex}
+                isEditing={editingIndex === image.id}
                 formData={formData}
                 setFormData={setFormData}
-                onEdit={() => startEdit(realIndex)}
-                onSave={() => handleUpdate(realIndex)}
+                onEdit={() => startEdit(image.id)}
+                onSave={() => handleUpdate(image.id)}
                 onCancel={cancelEdit}
                 onDelete={() => handleDelete(image.url)}
               />

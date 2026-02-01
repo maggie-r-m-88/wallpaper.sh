@@ -1,44 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs/promises";
-import path from "path";
-
-const IMAGES_PATH = path.join(process.cwd(), "data", "images.json");
-
-interface Image {
-  url: string;
-  title: string;
-  addedAt: string;
-  source: string;
-  attribution: string;
-}
-
-async function readImages(): Promise<Image[]> {
-  console.log("Reading from:", IMAGES_PATH);
-  const data = await fs.readFile(IMAGES_PATH, "utf-8");
-  const parsed = JSON.parse(data);
-  console.log("Read", parsed.length, "images from file");
-  return parsed;
-}
-
-async function writeImages(data: Image[]): Promise<void> {
-  const jsonString = JSON.stringify(data, null, 2);
-  console.log("Writing to:", IMAGES_PATH);
-  console.log("Writing", data.length, "images");
-  await fs.writeFile(IMAGES_PATH, jsonString, "utf-8");
-  console.log("Write completed successfully");
-
-  // Verify the write
-  const verification = await fs.readFile(IMAGES_PATH, "utf-8");
-  const verifiedData = JSON.parse(verification);
-  console.log("Verified:", verifiedData.length, "images in file");
-}
+import { supabase } from "@/lib/supabase";
 
 // GET - List all images
 export async function GET() {
   try {
-    const images = await readImages();
+    const { data: images, error } = await supabase
+      .from('images')
+      .select('*')
+      .order('added_at', { ascending: false });
+
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json(
+        { error: "Failed to read images" },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json(
-      { images },
+      { images: images || [] },
       {
         headers: {
           'Cache-Control': 'no-store, no-cache, must-revalidate',
@@ -48,6 +28,7 @@ export async function GET() {
       }
     );
   } catch (error) {
+    console.error("Error:", error);
     return NextResponse.json(
       { error: "Failed to read images" },
       { status: 500 }
@@ -59,21 +40,40 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const images = await readImages();
 
-    const newImage: Image = {
+    const newImage = {
       url: body.url,
-      title: body.title || "",
-      addedAt: new Date().toISOString(),
-      source: body.source || "",
-      attribution: body.attribution || "",
+      title: body.title || null,
+      added_at: new Date().toISOString(),
+      source: body.source || null,
+      attribution: body.attribution || null,
+      width: body.width || null,
+      height: body.height || null,
+      mime: body.mime || null,
+      license_name: body.license_name || null,
+      license_url: body.license_url || null,
+      categories: body.categories || null,
+      description: body.description || null,
+      taken_at: body.taken_at || null,
     };
 
-    images.push(newImage);
-    await writeImages(images);
+    const { data, error } = await supabase
+      .from('images')
+      .insert([newImage])
+      .select()
+      .single();
 
-    return NextResponse.json({ success: true, image: newImage });
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json(
+        { error: "Failed to add image" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true, image: data });
   } catch (error) {
+    console.error("Error:", error);
     return NextResponse.json(
       { error: "Failed to add image" },
       { status: 500 }
@@ -85,26 +85,33 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { index, ...imageData } = body;
+    const { id, ...imageData } = body;
 
-    const images = await readImages();
-
-    if (index < 0 || index >= images.length) {
+    if (!id) {
       return NextResponse.json(
-        { error: "Invalid index" },
+        { error: "Image ID is required" },
         { status: 400 }
       );
     }
 
-    images[index] = {
-      ...images[index],
-      ...imageData,
-    };
+    const { data, error } = await supabase
+      .from('images')
+      .update(imageData)
+      .eq('id', id)
+      .select()
+      .single();
 
-    await writeImages(images);
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json(
+        { error: "Failed to update image" },
+        { status: 500 }
+      );
+    }
 
-    return NextResponse.json({ success: true, image: images[index] });
+    return NextResponse.json({ success: true, image: data });
   } catch (error) {
+    console.error("Error:", error);
     return NextResponse.json(
       { error: "Failed to update image" },
       { status: 500 }
@@ -128,12 +135,22 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const images = await readImages();
-    console.log("Total images:", images.length);
+    const { data, error } = await supabase
+      .from('images')
+      .delete()
+      .eq('url', url)
+      .select()
+      .single();
 
-    const index = images.findIndex((img) => img.url === url);
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json(
+        { error: "Failed to delete image" },
+        { status: 500 }
+      );
+    }
 
-    if (index === -1) {
+    if (!data) {
       console.log("Image not found with URL:", url);
       return NextResponse.json(
         { error: "Image not found" },
@@ -141,12 +158,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    console.log("Found image at index:", index);
-    const deleted = images.splice(index, 1);
-    await writeImages(images);
-
-    console.log("Successfully deleted:", deleted[0]?.url);
-    return NextResponse.json({ success: true, deleted: deleted[0] });
+    console.log("Successfully deleted:", data.url);
+    return NextResponse.json({ success: true, deleted: data });
   } catch (error) {
     console.error("Delete error:", error);
     return NextResponse.json(
