@@ -2,6 +2,7 @@
   "name": "wallpaper-sh",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -9,7 +10,10 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "date-fns": "^4.1.0",
+    "jsdom": "^27.4.0",
     "next": "16.1.6",
+    "node-fetch": "^3.3.2",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },

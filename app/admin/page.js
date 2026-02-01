@@ -3,17 +3,21 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
+const ITEMS_PER_PAGE = 10;
+
 export default function AdminPage() {
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingIndex, setEditingIndex] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [formData, setFormData] = useState({
     url: "",
-    status: "active",
+    title: "",
     source: "",
-    notes: "",
+    attribution: "",
   });
+
   const router = useRouter();
 
   useEffect(() => {
@@ -24,13 +28,26 @@ export default function AdminPage() {
     try {
       const res = await fetch("/api/admin/images");
       const data = await res.json();
-      setImages(data.images || []);
-    } catch (error) {
-      console.error("Failed to fetch images:", error);
+      setImages(
+      (data.images || []).sort(
+        (a, b) => new Date(b.addedAt) - new Date(a.addedAt)
+      )
+    );
+
+    } catch (err) {
+      console.error("Failed to fetch images:", err);
     } finally {
       setLoading(false);
     }
   };
+
+  const totalPages = Math.ceil(images.length / ITEMS_PER_PAGE);
+  const paginatedImages = images.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  const resetPaging = () => setCurrentPage(1);
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -42,11 +59,12 @@ export default function AdminPage() {
       });
       if (res.ok) {
         await fetchImages();
+        resetPaging();
         setShowAddForm(false);
-        setFormData({ url: "", status: "active", source: "", notes: "" });
+        setFormData({ url: "", title: "", source: "", attribution: "" });
       }
-    } catch (error) {
-      console.error("Failed to add image:", error);
+    } catch (err) {
+      console.error("Failed to add image:", err);
     }
   };
 
@@ -59,25 +77,39 @@ export default function AdminPage() {
       });
       if (res.ok) {
         await fetchImages();
+        resetPaging();
         setEditingIndex(null);
-        setFormData({ url: "", status: "active", source: "", notes: "" });
+        setFormData({ url: "", title: "", source: "", attribution: "" });
       }
-    } catch (error) {
-      console.error("Failed to update image:", error);
+    } catch (err) {
+      console.error("Failed to update image:", err);
     }
   };
 
-  const handleDelete = async (index) => {
-    if (!confirm("Are you sure you want to delete this image?")) return;
+  const handleDelete = async (url) => {
     try {
-      const res = await fetch(`/api/admin/images?index=${index}`, {
+      console.log("Deleting image with URL:", url);
+      const res = await fetch(`/api/admin/images?url=${encodeURIComponent(url)}`, {
         method: "DELETE",
+        cache: "no-store",
       });
+      console.log("Delete response:", res.status, res.ok);
       if (res.ok) {
+        const data = await res.json();
+        console.log("Deleted:", data);
+
+        // Force refresh
+        router.refresh();
         await fetchImages();
+        resetPaging();
+
+        console.log("Images after delete:", images.length);
+      } else {
+        const error = await res.json();
+        console.error("Delete failed:", error);
       }
-    } catch (error) {
-      console.error("Failed to delete image:", error);
+    } catch (err) {
+      console.error("Failed to delete image:", err);
     }
   };
 
@@ -93,17 +125,13 @@ export default function AdminPage() {
   };
 
   const handleLogout = async () => {
-    try {
-      await fetch("/api/admin/auth", { method: "DELETE" });
-      router.push("/admin/login");
-      router.refresh();
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
+    await fetch("/api/admin/auth", { method: "DELETE" });
+    router.push("/admin/login");
+    router.refresh();
   };
 
   if (loading) {
-    return <div className="p-8">Loading...</div>;
+    return <div className="p-8">Loading…</div>;
   }
 
   return (
@@ -117,13 +145,13 @@ export default function AdminPage() {
                 setShowAddForm(!showAddForm);
                 setEditingIndex(null);
               }}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              className="bg-blue-600 text-white px-4 py-2 rounded"
             >
               {showAddForm ? "Cancel" : "Add New Image"}
             </button>
             <button
               onClick={handleLogout}
-              className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+              className="bg-gray-600 text-white px-4 py-2 rounded"
             >
               Logout
             </button>
@@ -131,193 +159,181 @@ export default function AdminPage() {
         </div>
 
         {showAddForm && (
-          <form onSubmit={handleAdd} className="bg-white p-6 rounded-lg shadow mb-8">
-            <h2 className="text-xl font-bold mb-4">Add New Image</h2>
+          <form onSubmit={handleAdd} className="bg-white p-6 rounded shadow mb-8">
+            <h2 className="text-xl font-bold mb-4">Add Image</h2>
             <ImageForm formData={formData} setFormData={setFormData} />
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-              >
-                Add Image
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowAddForm(false)}
-                className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
-              >
-                Cancel
-              </button>
-            </div>
+            <button className="mt-4 bg-green-600 text-white px-4 py-2 rounded">
+              Add
+            </button>
           </form>
         )}
 
         <div className="grid gap-6">
-          {images.map((image, index) => (
-            <ImageCard
-              key={index}
-              image={image}
-              index={index}
-              isEditing={editingIndex === index}
-              formData={formData}
-              setFormData={setFormData}
-              onEdit={() => startEdit(index)}
-              onSave={() => handleUpdate(index)}
-              onCancel={cancelEdit}
-              onDelete={() => handleDelete(index)}
-            />
-          ))}
+          {paginatedImages.map((image, index) => {
+            const realIndex =
+              (currentPage - 1) * ITEMS_PER_PAGE + index;
+            return (
+              <ImageCard
+                key={image.url}
+                image={image}
+                isEditing={editingIndex === realIndex}
+                formData={formData}
+                setFormData={setFormData}
+                onEdit={() => startEdit(realIndex)}
+                onSave={() => handleUpdate(realIndex)}
+                onCancel={cancelEdit}
+                onDelete={() => handleDelete(image.url)}
+              />
+            );
+          })}
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex justify-center items-center gap-3 mt-8">
+            <button
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((p) => p - 1)}
+              className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+            >
+              Prev
+            </button>
+            <span className="text-sm text-gray-600">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((p) => p + 1)}
+              className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
+/* ---------- Shared Components ---------- */
 
 function ImageForm({ formData, setFormData }) {
   return (
     <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium mb-1">Image URL</label>
-        <input
-          type="url"
-          required
-          value={formData.url}
-          onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-          className="w-full border border-gray-300 rounded px-3 py-2"
-          placeholder="https://example.com/image.jpg"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium mb-1">Status</label>
-        <select
-          value={formData.status}
-          onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-          className="w-full border border-gray-300 rounded px-3 py-2"
-        >
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-          <option value="archived">Archived</option>
-        </select>
-      </div>
-      <div>
-        <label className="block text-sm font-medium mb-1">Source</label>
-        <input
-          type="text"
-          value={formData.source}
-          onChange={(e) => setFormData({ ...formData, source: e.target.value })}
-          className="w-full border border-gray-300 rounded px-3 py-2"
-          placeholder="e.g., Freepik, Unsplash"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium mb-1">Notes</label>
-        <textarea
-          value={formData.notes}
-          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-          className="w-full border border-gray-300 rounded px-3 py-2"
-          rows="3"
-          placeholder="Description or notes about this image"
-        />
-      </div>
+      <input
+        type="url"
+        required
+        placeholder="Image URL"
+        value={formData.url}
+        onChange={(e) =>
+          setFormData({ ...formData, url: e.target.value })
+        }
+        className="w-full border px-3 py-2 rounded"
+      />
+
+      <select
+        value={formData.status}
+        onChange={(e) =>
+          setFormData({ ...formData, status: e.target.value })
+        }
+        className="w-full border px-3 py-2 rounded"
+      >
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+        <option value="archived">Archived</option>
+      </select>
+
+      <input
+        type="text"
+        placeholder="Source"
+        value={formData.source}
+        onChange={(e) =>
+          setFormData({ ...formData, source: e.target.value })
+        }
+        className="w-full border px-3 py-2 rounded"
+      />
+
+      <textarea
+        rows="3"
+        placeholder="Notes"
+        value={formData.notes}
+        onChange={(e) =>
+          setFormData({ ...formData, notes: e.target.value })
+        }
+        className="w-full border px-3 py-2 rounded"
+      />
     </div>
   );
 }
 
-function ImageCard({ image, index, isEditing, formData, setFormData, onEdit, onSave, onCancel, onDelete }) {
+function ImageCard({
+  image,
+  isEditing,
+  formData,
+  setFormData,
+  onEdit,
+  onSave,
+  onCancel,
+  onDelete,
+}) {
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="flex flex-col md:flex-row">
-        <div className="md:w-64 h-48 bg-gray-200 flex-shrink-0">
-          <img
-            src={image.url}
-            alt={image.notes || "Wallpaper"}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23ddd' width='100' height='100'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999'%3ENo Image%3C/text%3E%3C/svg%3E";
-            }}
-          />
-        </div>
-
-        <div className="flex-1 p-6">
-          {isEditing ? (
-            <div>
-              <ImageForm formData={formData} setFormData={setFormData} />
-              <div className="flex gap-2 mt-4">
+    <div className="bg-white rounded shadow flex overflow-hidden">
+      <a
+        href={image.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block w-64 h-40 flex-shrink-0"
+      >
+        <img
+          src={image.url}
+          className="w-full h-full object-cover hover:opacity-90 transition-opacity cursor-pointer"
+          alt=""
+          onError={(e) => (e.target.style.display = "none")}
+        />
+      </a>
+      <div className="p-6 flex-1">
+        {isEditing ? (
+          <>
+            <ImageForm formData={formData} setFormData={setFormData} />
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={onSave}
+                className="bg-green-600 text-white px-3 py-1 rounded"
+              >
+                Save
+              </button>
+              <button
+                onClick={onCancel}
+                className="bg-gray-400 text-white px-3 py-1 rounded"
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex justify-between mb-2">
+              <span className="text-sm text-gray-500">
+                {image.status}
+              </span>
+              <div className="flex gap-2">
                 <button
-                  onClick={onSave}
-                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                  onClick={onEdit}
+                  className="text-blue-600 text-sm"
                 >
-                  Save
+                  Edit
                 </button>
                 <button
-                  onClick={onCancel}
-                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
+                  onClick={onDelete}
+                  className="text-red-600 text-sm"
                 >
-                  Cancel
+                  Delete
                 </button>
               </div>
             </div>
-          ) : (
-            <div>
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <span className={`inline-block px-2 py-1 text-xs rounded ${
-                    image.status === "active" ? "bg-green-100 text-green-800" :
-                    image.status === "inactive" ? "bg-red-100 text-red-800" :
-                    "bg-gray-100 text-gray-800"
-                  }`}>
-                    {image.status}
-                  </span>
-                  <p className="text-sm text-gray-500 mt-2">
-                    Added: {new Date(image.addedAt).toLocaleDateString()}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={onEdit}
-                    className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={onDelete}
-                    className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div>
-                  <p className="text-sm font-medium text-gray-700">URL:</p>
-                  <a
-                    href={image.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-blue-600 hover:underline break-all"
-                  >
-                    {image.url}
-                  </a>
-                </div>
-                {image.source && (
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">Source:</p>
-                    <p className="text-sm text-gray-600">{image.source}</p>
-                  </div>
-                )}
-                {image.notes && (
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">Notes:</p>
-                    <p className="text-sm text-gray-600">{image.notes}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+            <p className="text-sm break-all">{image.url}</p>
+          </>
+        )}
       </div>
     </div>
   );
 }
-
