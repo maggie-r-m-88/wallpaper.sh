@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 20;
 
 export default function AdminPage() {
   const [images, setImages] = useState([]);
@@ -98,10 +98,20 @@ export default function AdminPage() {
         const data = await res.json();
         console.log("Deleted:", data);
 
+        // Save current page before refresh
+        const currentPageBeforeDelete = currentPage;
+
         // Force refresh
         router.refresh();
         await fetchImages();
-        resetPaging();
+
+        // After fetching, check if current page is still valid
+        // If we deleted the last item on a page, go back one page
+        const newTotalPages = Math.ceil((images.length - 1) / ITEMS_PER_PAGE);
+        if (currentPageBeforeDelete > newTotalPages && newTotalPages > 0) {
+          setCurrentPage(newTotalPages);
+        }
+        // Otherwise stay on the same page
 
         console.log("Images after delete:", images.length);
       } else {
