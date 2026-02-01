@@ -21,5 +21,6 @@ export interface ImageRow {
   license_url?: string | null;
   description?: string | null;
   categories?: any | null;
+  owner?: string | null;
 }
 

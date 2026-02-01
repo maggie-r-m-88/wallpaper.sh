@@ -39,7 +39,8 @@ async function importImages() {
     license_name: img.licenseName,
     license_url: img.licenseUrl,
     description: img.description,
-    categories: img.categories || [] // store categories as JSON array
+    categories: img.categories || [], // store categories as JSON array
+    owner: img.owner,
   }));
 
   // Upsert in batches

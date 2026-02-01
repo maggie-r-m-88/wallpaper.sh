@@ -60,6 +60,7 @@ async function fetchImageInfo(title) {
 
 function extractMetadata(title, imageinfo) {
   const meta = imageinfo?.extmetadata || {};
+  const userData = meta.Artist?.value || meta.Credit?.value || 'Own work';
   return {
     title,
     url: imageinfo?.url,
@@ -73,7 +74,8 @@ function extractMetadata(title, imageinfo) {
     licenseUrl: meta.LicenseUrl?.value || '',
     categories: parseCategories(meta.Categories?.value),
     description: cleanHtml(meta.ImageDescription?.value),
-    dateTime: meta.DateTime?.value || ''
+    dateTime: meta.DateTime?.value || '',
+    owner: cleanHtml(userData),
   };
 }
 
@@ -157,7 +159,8 @@ async function importJsonToSupabase() {
       license_name: img.licenseName,
       license_url: img.licenseUrl,
       description: img.description,
-      categories: img.categories || []
+      categories: img.categories || [],
+      owner: img.owner,
     }));
 
     for (const batch of chunkArray(rows, BATCH_SIZE)) {
