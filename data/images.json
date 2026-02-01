@@ -1,13 +1,6 @@
 {
   "images": [
     {
-      "url": "https://preview.redd.it/thors-hammer-bryce-canyon-4672x6224-v0-nu85qby6wdgg1.jpeg?width=1080&crop=smart&auto=webp&s=0bee4eb4d9bce8e3428ab99eddefa5dfcad709ef",
-      "status": "active",
-      "addedAt": "2025-12-15T10:00:00Z",
-      "source": "r/EarthPorn",
-      "notes": "Thor's Hammer, Bryce Canyon"
-    },
-    {
       "url": "https://upload.wikimedia.org/wikipedia/commons/0/0c/%21MQ_DSF9592-EnhancedAnd2more_fused_1.jpg",
       "status": "active",
       "addedAt": "2026-02-01T01:47:29.976Z",
@@ -111,6 +104,27 @@
       "addedAt": "2026-02-01T02:54:40.666Z",
       "source": "Wikipedia Commons",
       "notes": "Vista de Sagunto, Spain\nBy Diego Delso, CC BY-SA 4.0, https://commons.wikimedia.org/w/index.php?curid=39920987"
+    },
+    {
+      "url": "https://h2.gifposter.com/bingImages/AndermattSwiss_1920x1080.jpg",
+      "status": "active",
+      "addedAt": "2026-02-01T03:00:25.022Z",
+      "source": "Bing",
+      "notes": "Andermatt village in the Alps, Switzerland"
+    },
+    {
+      "url": "https://h2.gifposter.com/bingImages/WhiteSandsNM_1920x1080.jpg",
+      "status": "active",
+      "addedAt": "2026-02-01T03:01:05.512Z",
+      "source": "Bing",
+      "notes": "White Sands National Park, New Mexico © Francesco Carucci/Getty Images"
+    },
+    {
+      "url": "https://h2.gifposter.com/bingImages/Paepalanthus_EN-US6799393102_1920x1080.jpg",
+      "status": "active",
+      "addedAt": "2026-02-01T03:02:38.517Z",
+      "source": "Bing",
+      "notes": "Chapada dos Veadeiros National Park shines © Marcio Cabral/Getty Images"
     }
   ]
 }
