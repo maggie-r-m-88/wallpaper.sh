@@ -1,11 +1,24 @@
-// fetch-potd-month.js
 import fs from 'fs/promises';
 import fetch from 'node-fetch';
 import { JSDOM } from 'jsdom';
+import { createClient } from '@supabase/supabase-js';
+import 'dotenv/config';
 
 const API_ENDPOINT = 'https://commons.wikimedia.org/w/api.php';
 const OUTPUT_FILE = './data/images.json';
+const BATCH_SIZE = 25; // safe batch size for Supabase
 
+// --------------------
+// Supabase client
+// --------------------
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SECRET_KEY
+);
+
+// --------------------
+// Helpers
+// --------------------
 function getDaysInMonth(year, month) {
   return new Date(year, month, 0).getDate();
 }
@@ -18,6 +31,14 @@ function cleanHtml(html) {
 function parseCategories(raw) {
   if (!raw) return [];
   return raw.split('|').map(cat => cat.trim()).filter(Boolean);
+}
+
+function chunkArray(array, size) {
+  const chunks = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size));
+  }
+  return chunks;
 }
 
 async function expandPotdTemplate(dateStr) {
@@ -56,14 +77,15 @@ function extractMetadata(title, imageinfo) {
   };
 }
 
+// --------------------
+// Fetch POTD for month
+// --------------------
 export async function fetchPotdMonth(year, month) {
-  // Load existing JSON if it exists
   let existingData = [];
   try {
     const raw = await fs.readFile(OUTPUT_FILE, 'utf-8');
     existingData = JSON.parse(raw);
-  } catch (err) {
-    // file might not exist, that's fine
+  } catch {
     existingData = [];
   }
 
@@ -91,7 +113,7 @@ export async function fetchPotdMonth(year, month) {
 
     if (existingUrls.has(metadata.url)) {
       console.log(`ℹ️ Image already exists: ${metadata.url}`);
-      continue; // skip duplicates
+      continue;
     }
 
     newImages.push(metadata);
@@ -104,12 +126,62 @@ export async function fetchPotdMonth(year, month) {
   await fs.mkdir('./data', { recursive: true });
   await fs.writeFile(OUTPUT_FILE, JSON.stringify(finalData, null, 2));
   console.log(`\n✅ Saved ${newImages.length} new images to ${OUTPUT_FILE}`);
+
   return finalData;
 }
 
-// -----------------------------
-// CLI usage: node fetch-potd-month.js <year> <month>
-// -----------------------------
+// --------------------
+// Import JSON into Supabase
+// --------------------
+async function importJsonToSupabase() {
+  try {
+    const raw = await fs.readFile(OUTPUT_FILE, 'utf-8');
+    const images = JSON.parse(raw);
+    if (!images.length) {
+      console.log('ℹ️ No images to import.');
+      return;
+    }
+
+    console.log(`📥 Importing ${images.length} images into Supabase...`);
+
+    const rows = images.map(img => ({
+      url: img.url,
+      title: img.title,
+      width: img.width,
+      height: img.height,
+      mime: img.mime,
+      added_at: img.addedAt,
+      taken_at: img.dateTime,
+      source: img.source,
+      attribution: img.attribution,
+      license_name: img.licenseName,
+      license_url: img.licenseUrl,
+      description: img.description,
+      categories: img.categories || []
+    }));
+
+    for (const batch of chunkArray(rows, BATCH_SIZE)) {
+      const { error } = await supabase
+        .from('images')
+        .upsert(batch, { onConflict: 'url' });
+      if (error) throw error;
+    }
+
+    console.log(`✅ Imported ${images.length} images into Supabase.`);
+
+    // Clear JSON file only after successful import
+    await fs.writeFile(OUTPUT_FILE, JSON.stringify([], null, 2));
+    console.log('🧹 Cleared images.json file.');
+
+  } catch (err) {
+    console.error('❌ Failed to import JSON:', err);
+    throw err;
+  }
+}
+
+// --------------------
+// CLI usage
+// --------------------
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [,, yearArg, monthArg] = process.argv;
   const year = parseInt(yearArg, 10);
@@ -121,6 +193,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
 
   fetchPotdMonth(year, month)
-    .then(() => console.log('Done'))
+    .then(() => importJsonToSupabase())
+    .then(() => console.log('🎉 Done for the month!'))
     .catch(err => console.error(err));
 }
