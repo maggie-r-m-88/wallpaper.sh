@@ -1,6 +1,6 @@
 
-import HomeHeroImage from "./components/HomeHeroImage";
-import ExploreCollection from "./components/HomeFeaturedImages";
+import HomeHeroImage from "./components/HomeFeatured";
+import ExploreCollection from "./components/HomeFeaturedGrid";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 export default function Home() {
